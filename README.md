@@ -12,7 +12,7 @@ pip install -r requirements.txt
 
 # Running the script
 
-You can run the script by specifying a file using the --file argument
+You can run the script by specifying a file using the `--file` argument
 ```
 python secscan.py --file image_list.json
 ```
