@@ -6,6 +6,18 @@ import os
 
 from collections import defaultdict
 
+class TagNotFoundException(Exception):
+    def __init__(self, repository, tag):
+        self.message = "This tag {} does not exist for repository {}".format(tag, repository)
+
+class RepositoryNotFoundException(Exception):
+    def __init__(self, repository):
+        self.message = "This repository does not exist {}".format(repository)
+
+class RepositoryRestrictedException(Exception):
+    def __init__(self, repository):
+        self.message = "This repository does not exist {}".format(repository)
+
 class SecurityScanner:
     def __init__(self, endpoint):
         self.endpoint = endpoint
@@ -23,11 +35,18 @@ class SecurityScanner:
 
     def __fetch_image_by_tag(self, repo, tag):
         url = "{}/repository/{}".format(self.endpoint, repo)
-        response = requests.get(url).json()
+        response = requests.get(url)
+        status_code = response.status_code
+        if status_code == 404:
+            raise RepositoryNotFoundException(repo)
+        if status_code == 401:
+            raise RepositoryRestrictedException(repo)
         found_tag = None
-        for key, response_tag in response["tags"].items():
+        for key, response_tag in response.json()["tags"].items():
             if key == tag:
                 found_tag = response_tag
+        if found_tag is None:
+            raise TagNotFoundException(repo, tag)
         return found_tag
 
     def __secscan(self, repo, image_id):
@@ -44,6 +63,7 @@ class SecurityScanner:
             if "Vulnerabilities" not in pkg.keys():
                 continue
             for vuln in pkg["Vulnerabilities"]:
+                vuln["PackageName"] = pkg["Name"]
                 sec_map[vuln["Name"]] = vuln
         vulns = sec_map.values()
         org, repo = repo.split("/")
@@ -54,23 +74,3 @@ class SecurityScanner:
             "Manifest": found_tag["manifest_digest"],
             "Vulnerabilities": vulns
         }
-
-endpoint = os.getenv("QUAY_API_ENDPOINT", "https://quay.io/api/v1")
-
-parser = argparse.ArgumentParser(
-    description = "Find vulnerabilities for a given file or read from stdin. File must be in the correct format"
-)
-parser.add_argument("--file", help = "file containing the image tag to look up")
-parser.add_argument("data", nargs="?", help = "json stream of lookup tags from stdin")
-
-scanner = SecurityScanner(endpoint)
-
-lookup_file = parser.parse_args().file
-if lookup_file:
-    with open(lookup_file, "r") as lookup_file:
-        data = lookup_file.read()
-        tags = json.loads(data)
-        scanner.scan(tags)
-else:
-    tags = json.load(sys.stdin)
-    scanner.scan(tags)
