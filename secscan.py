@@ -59,18 +59,18 @@ class SecurityScanner:
         image_id = found_tag["image_id"]
         pkgs = self.__secscan(repo, image_id)
         sec_map = defaultdict(str)
+        vulnerabilities = []
         for pkg in pkgs:
             if "Vulnerabilities" not in pkg.keys():
                 continue
             for vuln in pkg["Vulnerabilities"]:
                 vuln["PackageName"] = pkg["Name"]
-                sec_map[vuln["Name"]] = vuln
-        vulns = sec_map.values()
+                vulnerabilities.append(vuln)
         org, repo = repo.split("/")
         return {
             "Organisation": org,
             "Repository": repo,
             "Tag": found_tag["name"],
             "Manifest": found_tag["manifest_digest"],
-            "Vulnerabilities": vulns
+            "Vulnerabilities": vulnerabilities
         }
